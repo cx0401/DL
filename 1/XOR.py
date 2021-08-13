@@ -1,26 +1,26 @@
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset
 import torch.nn as nn
+from torch.utils.data import DataLoader, Dataset
 
 
-class mydata(Dataset):
+class myData(Dataset):
     def __init__(self, file):
         data = np.loadtxt(file)
-        self.xdata = torch.from_numpy(data[:, 0:-1])
-        self.ydata = torch.from_numpy(data[:, [-1]])
+        self.x = data[:, 0:-1]
+        self.y = data[:, [-1]]
 
     def __getitem__(self, item):
-        return self.xdata[item], self.ydata[item]
+        return self.x[item], self.y[item]
 
     def __len__(self):
-        return len(self.xdata)
+        return len(self.x)
 
 
-class myModel(torch.nn.Module):
+class myModel(nn.Module):
     def __init__(self):
         super(myModel, self).__init__()
-        self.net = torch.nn.Sequential(
+        self.net = nn.Sequential(
             nn.Linear(2, 10),
             nn.ReLU(),
             nn.Linear(10, 1),
@@ -31,41 +31,34 @@ class myModel(torch.nn.Module):
         return self.net(x)
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = myModel().to(device)
-criterion = torch.nn.MSELoss()
+model = myModel().to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+criterion = nn.MSELoss()
+optimizer = torch.optim.SGD(params=model.parameters(), lr=0.2, momentum=0)
 
 
-def trainNet():
-    loader = DataLoader(mydata("data/1.txt"), batch_size=4, shuffle= True)
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.2, momentum=0)
+def train():
+    dataLoader = DataLoader(myData("data/1.txt"), batch_size=4, shuffle=True)
+    model.train()
     for epoch in range(5000):
-        model.train()
-        for inputs, labels in loader:
+        for x, y in dataLoader:
+            x, y = x.to(torch.float32), y.to(torch.float32)
             optimizer.zero_grad()
-            inputs, labels = inputs.to(torch.float32), labels.to(torch.float32)
-            y = model(inputs)
-            loss = criterion(y, labels)
+            loss = criterion(model(x), y)
             loss.backward()
             optimizer.step()
-            if epoch % 100 == 0:
-                print(epoch, inputs, labels, y)
 
 
 def validation():
-    set = mydata('data/2.txt')
-    loader = DataLoader(set, batch_size=1, shuffle=False)
+    dataLoader = DataLoader(myData("data/2.txt"), batch_size=1, shuffle=False)
     model.eval()
-    total_loss = 0
-    for x, y in loader:
-        x, y = x.to(torch.float32), y.to(torch.float32)
+    loss = 0
+    for x, y in dataLoader:
         with torch.no_grad():
-            pre = model(x)
-            loss = criterion(pre, y)
-        total_loss += loss.cpu().item() * len(x)
-    avg_loss = total_loss / len(loader.dataset)
-    print(avg_loss)
+            x, y = x.to(torch.float32), y.to(torch.float32)
+            loss += criterion(model(x), y).cpu().item() * len(x) # .cpu() means
+            print(x, y, model(x))
+    print(loss / len(dataLoader))
 
 
-trainNet()
+train()
 validation()
